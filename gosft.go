@@ -126,8 +126,21 @@ func New(format string) (*Formatter, error) {
 		formatters = append(formatters, makeStringFormatter(buf))
 	}
 
+	// When instantiating a formatter, want to calculate and store the
+	// longest slice of bytes that are needed to format any time using
+	// the specified time format string. For this reason, create a
+	// time.Time instance that has the longest month name, September,
+	// and the longest weekday name, Thursday, and format it using the
+	// provided time format specification, count the length of that
+	// string, and store that in the time formatter's size field. Then
+	// whenever need to format a new time, pre-allocate a byte slice
+	// with that number of bytes, and format the provided time into
+	// that byte slice.
+	when := time.Date(2021, time.September, 30, 23, 59, 59, 0, time.UTC)
+
 	tf := &Formatter{formatters: formatters}
-	tf.size = len(tf.Format(time.Now()))
+	tf.size = len(tf.Format(when))
+
 	return tf, nil
 }
 
