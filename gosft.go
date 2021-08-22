@@ -158,88 +158,84 @@ func appendRune(buf *[]byte, r rune) {
 	*buf = (*buf)[:olen+n]                       // trim buf to actual size used by rune addition
 }
 
-// TODO: can combine into larger slice, and index into part of slice
-// when learn need to have 0 rather than space.
-const digitsA = "0123456789"
-const digitsB = " 123456789"
+// digits is two concatenated string slices that allow using an offset
+// of 10 to index into space padded values when necessary.
+const digits = "0123456789 123456789"
 
 // Dividend ÷ Divisor = Quotient
 
 func append02d(buf *[]byte, i int) {
 	quotient := i / 10
 	remainder := i % 10
-	*buf = append(*buf, digitsA[quotient])
-	*buf = append(*buf, digitsA[remainder])
+	*buf = append(*buf, digits[quotient])
+	*buf = append(*buf, digits[remainder])
 }
 
 func appendS2d(buf *[]byte, i int) {
 	quotient := i / 10
 	remainder := i % 10
-	*buf = append(*buf, digitsB[quotient])
-	*buf = append(*buf, digitsA[remainder])
+	*buf = append(*buf, digits[10+quotient])
+	*buf = append(*buf, digits[remainder])
 }
 
 func append03d(buf *[]byte, i int) {
 	// hundreds
 	quotient := i / 100
 	remainder := i % 100
-	*buf = append(*buf, digitsA[quotient])
+	*buf = append(*buf, digits[quotient])
 
 	// tens
 	quotient = remainder / 10
 	remainder %= 10
-	*buf = append(*buf, digitsA[quotient])
+	*buf = append(*buf, digits[quotient])
 
 	// ones
-	*buf = append(*buf, digitsA[remainder])
+	*buf = append(*buf, digits[remainder])
 }
 
 func append04d(buf *[]byte, i int) {
 	// thousands
 	quotient := i / 1000
 	remainder := i % 1000
-	*buf = append(*buf, digitsA[quotient])
+	*buf = append(*buf, digits[quotient])
 
 	// hundreds
 	quotient = remainder / 100
 	remainder %= 100
-	*buf = append(*buf, digitsA[quotient])
+	*buf = append(*buf, digits[quotient])
 
 	// tens
 	quotient = remainder / 10
 	remainder %= 10
-	*buf = append(*buf, digitsA[quotient])
+	*buf = append(*buf, digits[quotient])
 
 	// ones
-	*buf = append(*buf, digitsA[remainder])
+	*buf = append(*buf, digits[remainder])
 }
 
 func appendS4d(buf *[]byte, i int) {
-	slice := digitsB
+	offset := 10
 
 	// thousands
-	*buf = append(*buf, slice[i/1000])
+	*buf = append(*buf, digits[offset+i/1000])
 	if i >= 1000 {
-		slice = digitsA
+		offset = 0
 	}
 	i %= 1000
 
 	// hundreds
-	*buf = append(*buf, slice[i/100])
+	*buf = append(*buf, digits[offset+i/100])
 	if i >= 100 {
-		slice = digitsA
+		offset = 0
 	}
 	i %= 100
 
 	// tens
-	*buf = append(*buf, slice[i/10])
-	if i >= 10 {
-		slice = digitsA
-	}
+	*buf = append(*buf, digits[offset+i/10])
 	i %= 10
 
 	// ones
-	*buf = append(*buf, digitsA[i])
+	*buf = append(*buf, digits[i])
 }
 
 func appendWeekdayShort(buf *[]byte, t time.Time) {

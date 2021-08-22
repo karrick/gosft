@@ -9,9 +9,9 @@ func append2d(buf *[]byte, i int) {
 	quotient := i / 10
 	remainder := i % 10
 	if quotient > 0 {
-		*buf = append(*buf, digitsA[quotient])
+		*buf = append(*buf, digits[quotient])
 	}
-	*buf = append(*buf, digitsA[remainder])
+	*buf = append(*buf, digits[remainder])
 }
 
 func TestAppend2(t *testing.T) {
@@ -109,13 +109,13 @@ func TestAppend3(t *testing.T) {
 func append4d(buf *[]byte, i int) {
 	var foo bool
 	if i >= 1000 {
-		*buf = append(*buf, digitsA[i/1000])
+		*buf = append(*buf, digits[i/1000])
 		i %= 1000
 		foo = true
 	}
 
 	if i >= 100 {
-		*buf = append(*buf, digitsA[i/100])
+		*buf = append(*buf, digits[i/100])
 		i %= 100
 		foo = true
 	} else if foo {
@@ -123,14 +123,14 @@ func append4d(buf *[]byte, i int) {
 	}
 
 	if i >= 10 {
-		*buf = append(*buf, digitsA[i/10])
+		*buf = append(*buf, digits[i/10])
 		i %= 10
 		foo = true
 	} else if foo {
 		*buf = append(*buf, '0')
 	}
 
-	*buf = append(*buf, digitsA[i])
+	*buf = append(*buf, digits[i])
 }
 
 func TestAppend4(t *testing.T) {
