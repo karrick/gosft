@@ -383,11 +383,12 @@ func appendC(buf *[]byte, t time.Time) {
 	appendMonthShort(buf, t)
 	*buf = append(*buf, ' ')
 
-	// append02d(buf, t.Day())
-	appendE(buf, t)
+	// appendE(buf, t)
+	appendS2d(buf, t.Day())
 
 	*buf = append(*buf, ' ')
 	appendTC(buf, t)
+
 	*buf = append(*buf, ' ')
 	appendYC(buf, t)
 }
@@ -495,7 +496,7 @@ func appendK(buf *[]byte, t time.Time) {
 	// %k     The hour (24-hour clock) as a decimal number (range  0  to  23);
 	//        single  digits are preceded by a blank.  (See also %H.)  (Calcu‐
 	//        lated from tm_hour.)  (TZ)
-	append02d(buf, t.Hour())
+	appendS2d(buf, t.Hour())
 }
 
 func appendL(buf *[]byte, t time.Time) {
