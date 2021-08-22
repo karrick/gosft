@@ -158,6 +158,8 @@ func appendRune(buf *[]byte, r rune) {
 	*buf = (*buf)[:olen+n]                       // trim buf to actual size used by rune addition
 }
 
+// TODO: can combine into larger slice, and index into part of slice
+// when learn need to have 0 rather than space.
 const digitsA = "0123456789"
 const digitsB = " 123456789"
 
@@ -193,60 +195,50 @@ func append03d(buf *[]byte, i int) {
 }
 
 func append04d(buf *[]byte, i int) {
-	if i >= 1000 {
-		*buf = append(*buf, digitsA[i/1000])
-	} else {
-		*buf = append(*buf, '0')
-	}
-	i %= 1000
+	// thousands
+	quotient := i / 1000
+	remainder := i % 1000
+	*buf = append(*buf, digitsA[quotient])
 
-	if i >= 100 {
-		*buf = append(*buf, digitsA[i/100])
-	} else {
-		*buf = append(*buf, '0')
-	}
-	i %= 100
+	// hundreds
+	quotient = remainder / 100
+	remainder %= 100
+	*buf = append(*buf, digitsA[quotient])
 
-	if i >= 10 {
-		*buf = append(*buf, digitsA[i/10])
-	} else {
-		*buf = append(*buf, '0')
-	}
-	i %= 10
+	// tens
+	quotient = remainder / 10
+	remainder %= 10
+	*buf = append(*buf, digitsA[quotient])
 
-	*buf = append(*buf, digitsA[i])
+	// ones
+	*buf = append(*buf, digitsA[remainder])
 }
 
 func appendS4d(buf *[]byte, i int) {
-	var foo bool
+	slice := digitsB
+
+	// thousands
+	*buf = append(*buf, slice[i/1000])
 	if i >= 1000 {
-		*buf = append(*buf, digitsA[i/1000])
-		foo = true
-	} else {
-		*buf = append(*buf, ' ')
+		slice = digitsA
 	}
 	i %= 1000
 
+	// hundreds
+	*buf = append(*buf, slice[i/100])
 	if i >= 100 {
-		*buf = append(*buf, digitsA[i/100])
-		foo = true
-	} else if foo {
-		*buf = append(*buf, '0')
-	} else {
-		*buf = append(*buf, ' ')
+		slice = digitsA
 	}
 	i %= 100
 
+	// tens
+	*buf = append(*buf, slice[i/10])
 	if i >= 10 {
-		*buf = append(*buf, digitsA[i/10])
-		foo = true
-	} else if foo {
-		*buf = append(*buf, '0')
-	} else {
-		*buf = append(*buf, ' ')
+		slice = digitsA
 	}
 	i %= 10
 
+	// ones
 	*buf = append(*buf, digitsA[i])
 }
 
