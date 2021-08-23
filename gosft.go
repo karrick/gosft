@@ -16,6 +16,28 @@ type Formatter struct {
 	size       int
 }
 
+var formatMap map[string]string
+
+func init() {
+	formatMap = map[string]string{
+		time.ANSIC:       "%c",
+		time.UnixDate:    "%a %b %e %T %Z %Y",  // "Mon Jan _2 15:04:05 MST 2006",
+		time.RubyDate:    "%a %b %d %T %z %Y",  // "Mon Jan 02 15:04:05 -0700 2006",
+		time.RFC822:      "%d %b %y %R %Z",     // "02 Jan 06 15:04 MST",
+		time.RFC822Z:     "%d %b %y %R %z",     // "02 Jan 06 15:04 -0700",
+		time.RFC850:      "%A, %d-%b-%y %T %Z", // "Monday, 02-Jan-06 15:04:05 MST",
+		time.RFC1123:     "%a, %d %b %Y %T %Z", // "Mon, 02 Jan 2006 15:04:05 MST",
+		time.RFC1123Z:    "%a, %d %b %Y %T %z", // "Mon, 02 Jan 2006 15:04:05 -0700",
+		time.RFC3339:     "%Y-%m-%dT%T%1",      // "2006-01-02T15:04:05Z07:00", // TODO: %1 not standard
+		time.RFC3339Nano: "%Y-%m-%dT%T.%2%1",   // "2006-01-02T15:04:05.999999999Z07:00", // TODO: %1 and %2 not standard
+		time.Kitchen:     "%l:%M%p",            // "3:04PM",
+		time.Stamp:       "%b %e %T",           // "Jan _2 15:04:05"
+		time.StampMilli:  "%b %e %T.%3",        // "Jan _2 15:04:05.000" // TODO: %3 not standard
+		time.StampMicro:  "%b %e %T.%4",        // "Jan _2 15:04:05.000000" // TODO: %4 not standard
+		time.StampNano:   "%b %e %T.%2",        // "Jan _2 15:04:05.000000000" // TODO: %2 not standard
+	}
+}
+
 // New returns a formatter that formats times according to the
 // provided format string.
 func New(format string) (*Formatter, error) {
@@ -110,8 +132,20 @@ func New(format string) (*Formatter, error) {
 			formatters = append(formatters, appendY)
 		case 'Y':
 			formatters = append(formatters, appendYC)
+		case 'z':
+			formatters = append(formatters, appendZ)
+		case 'Z':
+			formatters = append(formatters, appendZC)
 		case '%':
 			formatters = append(formatters, appendPercent)
+		case '1':
+			formatters = append(formatters, appendTZ)
+		case '2':
+			formatters = append(formatters, appendNano)
+		case '3':
+			formatters = append(formatters, appendMilli)
+		case '4':
+			formatters = append(formatters, appendMicro)
 		default:
 			return nil, fmt.Errorf("cannot recognize format verb %q at index %d", rune, ri)
 		}
@@ -142,6 +176,25 @@ func New(format string) (*Formatter, error) {
 	tf.size = len(tf.Format(when))
 
 	return tf, nil
+}
+
+// NewCompat returns a formatter that formats times according to the
+// provided Go standard library compatible time string format.
+func NewCompat(format string) (*Formatter, error) {
+	value, ok := formatMap[format]
+	if !ok {
+		return nil, fmt.Errorf("cannot find equivalent for time format string: %q", format)
+	}
+	return New(value)
+}
+
+// Append will format t in accordance with its preconfigured format
+// specification and append the formatted bytes to buf.
+func (tf *Formatter) Append(buf []byte, t time.Time) []byte {
+	for _, f := range tf.formatters {
+		f(&buf, t)
+	}
+	return buf
 }
 
 // Format will format t and return a string in accordance with its
@@ -176,6 +229,15 @@ func appendRune(buf *[]byte, r rune) {
 const digits = "0123456789 123456789"
 
 // Dividend ÷ Divisor = Quotient
+
+func append2d(buf *[]byte, i int) {
+	quotient := i / 10
+	remainder := i % 10
+	if quotient > 0 {
+		*buf = append(*buf, digits[quotient])
+	}
+	*buf = append(*buf, digits[remainder])
+}
 
 func append02d(buf *[]byte, i int) {
 	quotient := i / 10
@@ -249,6 +311,82 @@ func appendS4d(buf *[]byte, i int) {
 
 	// ones
 	*buf = append(*buf, digits[i])
+}
+
+func append06d(buf *[]byte, i int) {
+	// hundred-thousands
+	quotient := i / 100000
+	remainder := i % 100000
+	*buf = append(*buf, digits[quotient])
+
+	// ten-thousands
+	quotient = remainder / 10000
+	remainder = i % 10000
+	*buf = append(*buf, digits[quotient])
+
+	// thousands
+	quotient = remainder / 1000
+	remainder = i % 1000
+	*buf = append(*buf, digits[quotient])
+
+	// hundreds
+	quotient = remainder / 100
+	remainder %= 100
+	*buf = append(*buf, digits[quotient])
+
+	// tens
+	quotient = remainder / 10
+	remainder %= 10
+	*buf = append(*buf, digits[quotient])
+
+	// ones
+	*buf = append(*buf, digits[remainder])
+}
+
+func append09d(buf *[]byte, i int) {
+	// hundred-millions
+	//              123456789
+	quotient := i / 100000000
+	remainder := i % 100000000
+	*buf = append(*buf, digits[quotient])
+
+	// ten-millions
+	quotient = remainder / 10000000
+	remainder = i % 10000000
+	*buf = append(*buf, digits[quotient])
+
+	// millions
+	quotient = remainder / 1000000
+	remainder = i % 1000000
+	*buf = append(*buf, digits[quotient])
+
+	// hundred-thousands
+	quotient = remainder / 100000
+	remainder = i % 100000
+	*buf = append(*buf, digits[quotient])
+
+	// ten-thousands
+	quotient = remainder / 10000
+	remainder = i % 10000
+	*buf = append(*buf, digits[quotient])
+
+	// thousands
+	quotient = remainder / 1000
+	remainder = i % 1000
+	*buf = append(*buf, digits[quotient])
+
+	// hundreds
+	quotient = remainder / 100
+	remainder %= 100
+	*buf = append(*buf, digits[quotient])
+
+	// tens
+	quotient = remainder / 10
+	remainder %= 10
+	*buf = append(*buf, digits[quotient])
+
+	// ones
+	*buf = append(*buf, digits[remainder])
 }
 
 func appendWeekdayShort(buf *[]byte, t time.Time) {
@@ -507,7 +645,7 @@ func appendL(buf *[]byte, t time.Time) {
 	if hour > 12 {
 		hour -= 12
 	}
-	appendS2d(buf, hour)
+	append2d(buf, hour)
 }
 
 func appendM(buf *[]byte, t time.Time) {
@@ -597,6 +735,20 @@ func appendRC(buf *[]byte, t time.Time) {
 	append02d(buf, hour)
 	*buf = append(*buf, ':')
 	append02d(buf, minute)
+}
+
+func appendMicro(buf *[]byte, t time.Time) {
+	micro := t.Nanosecond() / 1000
+	append06d(buf, micro)
+}
+
+func appendMilli(buf *[]byte, t time.Time) {
+	millis := t.Nanosecond() / 1000000
+	append03d(buf, millis)
+}
+
+func appendNano(buf *[]byte, t time.Time) {
+	append09d(buf, t.Nanosecond())
 }
 
 func appendS(buf *[]byte, t time.Time) {
@@ -745,14 +897,46 @@ func appendYC(buf *[]byte, t time.Time) {
 	append04d(buf, year)
 }
 
-// func appendZ(buf *[]byte, t time.Time) {
-// 	// %z     The +hhmm or -hhmm numeric  timezone  (that  is,  the  hour  and
-// 	//        minute offset from UTC). (SU)
-// }
+func appendZ(buf *[]byte, t time.Time) {
+	// %z     The +hhmm or -hhmm numeric  timezone  (that  is,  the  hour  and
+	//        minute offset from UTC). (SU)
+	_, offset := t.Zone()
+	hour := offset / 60
+	minute := offset % 60
+	if offset >= 0 {
+		*buf = append(*buf, '+')
+	} else {
+		*buf = append(*buf, '-')
+	}
+	append02d(buf, hour)
+	append02d(buf, minute)
+}
 
-// func appendZC(buf *[]byte, t time.Time) {
-// 	// %Z     The timezone name or abbreviation.
-// }
+func appendTZ(buf *[]byte, t time.Time) {
+	_, offset := t.Zone()
+	if offset == 0 {
+		*buf = append(*buf, 'Z')
+	} else {
+		hour := offset / 60
+		minute := offset % 60
+		if offset > 0 {
+			append02d(buf, hour)
+			*buf = append(*buf, ':')
+			append02d(buf, minute)
+		} else {
+			*buf = append(*buf, '-')
+			append02d(buf, hour)
+			*buf = append(*buf, ':')
+			append02d(buf, minute)
+		}
+	}
+}
+
+func appendZC(buf *[]byte, t time.Time) {
+	// %Z     The timezone name or abbreviation.
+	name, _ := t.Zone()
+	*buf = append(*buf, name...)
+}
 
 // func appendPlus(buf *[]byte, t time.Time) {
 // 	// %+     The  date  and  time  in  date(1) format. (TZ) (Not supported in

@@ -5,15 +5,6 @@ import (
 	"time"
 )
 
-func append2d(buf *[]byte, i int) {
-	quotient := i / 10
-	remainder := i % 10
-	if quotient > 0 {
-		*buf = append(*buf, digits[quotient])
-	}
-	*buf = append(*buf, digits[remainder])
-}
-
 func TestAppend2(t *testing.T) {
 	t.Run("2d", func(t *testing.T) {
 		tests := []struct {
@@ -208,7 +199,30 @@ func TestAppend4(t *testing.T) {
 	})
 }
 
-func TestTimeFormatter(t *testing.T) {
+func TestAppend9(t *testing.T) {
+	tests := []struct {
+		value int
+		want  string
+	}{
+		{0, "000000000"},
+		{1, "000000001"},
+		{9, "000000009"},
+		{10, "000000010"},
+		{99, "000000099"},
+		{123456789, "123456789"},
+	}
+	for _, c := range tests {
+		t.Run(c.want, func(t *testing.T) {
+			var buf []byte
+			append09d(&buf, c.value)
+			if got, want := string(buf), c.want; got != want {
+				t.Errorf("GOT: %q; WANT: %q", got, want)
+			}
+		})
+	}
+}
+
+func TestFormatter(t *testing.T) {
 	when := time.Date(2009, time.February, 5, 5, 0, 57, 12345600, time.UTC)
 
 	tests := []struct {
@@ -223,6 +237,7 @@ func TestTimeFormatter(t *testing.T) {
 		{"%d", "05"},
 		{"%D", "02/05/09"},
 		{"%e", " 5"},
+		// {"%E", "TODO"},
 		{"%F", "2009-02-05"},
 		{"%g", "09"},
 		{"%G", "2009"},
@@ -231,10 +246,11 @@ func TestTimeFormatter(t *testing.T) {
 		{"%I", "05"},
 		{"%j", "036"},
 		{"%k", " 5"},
-		{"%l", " 5"},
+		{"%l", "5"},
 		{"%m", "02"},
 		{"%M", "00"},
 		{"%n", "\n"},
+		// {"%O", "TODO"},
 		{"%p", "AM"},
 		{"%P", "am"},
 		{"%r", "05:00:57 AM"},
@@ -244,23 +260,136 @@ func TestTimeFormatter(t *testing.T) {
 		{"%t", "\t"},
 		{"%T", "05:00:57"},
 		{"%u", "4"},
+		// {"%U", "TODO"},
+		// {"%V", "TODO"},
 		{"%w", "4"},
+		// {"%W", "TODO"},
 		{"%x", "02/05/09"},
 		{"%X", "05:00:57"},
 		{"%y", "09"},
 		{"%Y", "2009"},
+		{"%z", "+0000"},
+		{"%Z", "UTC"},
+		// {"%+", "TODO"},
 		{"%%", "%"},
-		//
+
+		// Make sure embedded substrings are included.
 		{"abc %F def %T ghi", "abc 2009-02-05 def 05:00:57 ghi"},
 	}
 	for _, c := range tests {
-		t.Run(c.format, func(t *testing.T) {
-			tf, err := New(c.format)
+		tf, err := New(c.format)
+		ensureError(t, err, nil)
+		buf := make([]byte, 0, 128)
+
+		t.Run("Append", func(t *testing.T) {
+			t.Run(c.format, func(t *testing.T) {
+				if got, want := string(tf.Append(buf, when)), c.want; got != want {
+					t.Errorf("GOT: %q; WANT: %q", got, want)
+				}
+			})
+		})
+		t.Run("Format", func(t *testing.T) {
+			t.Run(c.format, func(t *testing.T) {
+				if got, want := tf.Format(when), c.want; got != want {
+					t.Errorf("GOT: %q; WANT: %q", got, want)
+				}
+			})
+		})
+	}
+}
+
+func TestCompatibility(t *testing.T) {
+	when := time.Date(2009, time.February, 5, 5, 0, 57, 12345678, time.UTC)
+
+	tests := []string{
+		time.ANSIC,
+		time.UnixDate,
+		time.RubyDate,
+		time.RFC822,
+		time.RFC822Z,
+		time.RFC850,
+		time.RFC1123,
+		time.RFC1123Z,
+		time.RFC3339,
+		time.RFC3339Nano,
+		time.Kitchen,
+		time.Stamp,
+		time.StampMilli,
+		time.StampMicro,
+		time.StampNano,
+	}
+	for _, c := range tests {
+		t.Run(c, func(t *testing.T) {
+			tf, err := NewCompat(c)
 			ensureError(t, err, nil)
 
-			if got, want := tf.Format(when), c.want; got != want {
+			if got, want := tf.Format(when), when.Format(c); got != want {
 				t.Errorf("GOT: %q; WANT: %q", got, want)
 			}
 		})
 	}
+}
+
+func Benchmark(b *testing.B) {
+	var err error
+	var foo string
+
+	tests := []struct {
+		format string
+		tf     *Formatter
+	}{
+		{time.ANSIC, nil},
+		{time.UnixDate, nil},
+		{time.RubyDate, nil},
+		{time.RFC822, nil},
+		{time.RFC822Z, nil},
+		{time.RFC850, nil},
+		{time.RFC1123, nil},
+		{time.RFC1123Z, nil},
+		{time.RFC3339, nil},
+		{time.RFC3339Nano, nil},
+		{time.Kitchen, nil},
+		{time.Kitchen, nil},
+		{time.Stamp, nil},
+		{time.StampMilli, nil},
+		{time.StampMicro, nil},
+		{time.StampNano, nil},
+	}
+
+	for i, c := range tests {
+		tests[i].tf, err = NewCompat(c.format)
+		ensureError(b, err, nil)
+	}
+
+	when := time.Date(2009, time.February, 5, 5, 0, 57, 12345600, time.UTC)
+	buf := make([]byte, 0, 100)
+
+	b.ResetTimer()
+
+	b.Run("stdlib", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			for _, c := range tests {
+				foo = when.Format(c.format)
+			}
+		}
+	})
+	_ = foo
+
+	b.Run("Append", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			for _, c := range tests {
+				buf = c.tf.Append(buf, when)
+			}
+		}
+	})
+	_ = foo
+
+	b.Run("Format", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			for _, c := range tests {
+				foo = c.tf.Format(when)
+			}
+		}
+	})
+	_ = foo
 }
