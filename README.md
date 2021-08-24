@@ -65,16 +65,16 @@ allocate space for and format the same time using the same formats
 from the standard library.
 
 ```Bash
-$ go test -bench=.
+$ go test -bench=. -benchmem
 goos: linux
 goarch: amd64
 pkg: github.com/karrick/gosft
 cpu: AMD Ryzen Threadripper 3960X 24-Core Processor 
-Benchmark/stdlib-48         	  337138	      5442 ns/op
-Benchmark/Append-48         	  396704	      2576 ns/op
-Benchmark/Format-48         	  232258	      5368 ns/op
+BenchmarkCompatibility/Append-48         	  512246	      3113 ns/op	     384 B/op	      16 allocs/op
+BenchmarkCompatibility/Format-48         	  232014	      4445 ns/op	    1184 B/op	      48 allocs/op
+BenchmarkCompatibility/stdlib-48         	  217719	      5518 ns/op	     400 B/op	      16 allocs/op
 PASS
-ok  	github.com/karrick/gosft	4.997s
+ok  	github.com/karrick/gosft	4.871s
 ```
 
 ## Supportd format specifiers
@@ -87,16 +87,16 @@ Supports most of the format specifiers from `man 3 strftime`.
 | `%A` | Yes | The full name of the day of the week. |
 | `%b` | Yes | The abbreviated month name. |
 | `%B` | Yes | Thee full name of the month. |
-| `%c` | Yes | Time and date. Equivalent to `%a %b %e %H:%M:%S %Y` |
+| `%c` | Yes | Time and date. Equivalent to `%a %b %e %H:%M:%S %Y`. |
 | `%C` | Yes | The century number (year/100) as a 2-digit integer. |
 | `%d` | Yes | The day of the month as a decimal number (range 01 to 31). |
-| `%D` | Yes | Equivalent to %m/%d/%y. |
-| `%e` | Yes | Like %d, the ay of the month as a decimal number, but a leading space rather than zero. |
+| `%D` | Yes | Equivalent to `%m/%d/%y`. |
+| `%e` | Yes | Like `%d`, the ay of the month as a decimal number, but a leading space rather than zero. |
 | `%E` | No  | Modifier: use alternative ("era-based") format. |
-| `%F` | Yes | Equivalent to %Y-%m-%d (the ISO 8601 date format. |
-| `%g` | Yes | Like %G, but without century, that is, with a 2-digit year (00-99). |
+| `%F` | Yes | Equivalent to `%Y-%m-%d` (the ISO 8601 date format. |
+| `%g` | Yes | Like `%G`, but without century, that is, with a 2-digit year (00-99). |
 | `%G` | Yes | The ISO 8601 week-based year with century as a 4-digit decimal number. |
-| `%h` | Yes | Equivalent to %b. |
+| `%h` | Yes | Equivalent to `%b`. |
 | `%H` | Yes | The hour as a decimal number using a 24-hour clock (range 00 to 23). |
 | `%I` | Yes | The hour as a decimal number using a 12-hour clock (range 01 to 12). |
 | `%j` | Yes | The day of the year as a decimal number (range 001 to 366). |
@@ -108,22 +108,22 @@ Supports most of the format specifiers from `man 3 strftime`.
 | `%O` | No  | Modifier: use alternative numeric symbols. |
 | `%p` | Yes | Either "AM" or "PM" according to the given time value. |
 | `%P` | Yes | Either "am" or "pm" according to the given time value. |
-| `%r` | Yes | The time in a.m. or p.m. notation. Equivalent to %I:%M:%S %p |
-| `%R` | Yes | The time in 24-hour notation. Equivalent to %H:%M |
+| `%r` | Yes | The time in a.m. or p.m. notation. Equivalent to `%I:%M:%S %p`. |
+| `%R` | Yes | The time in 24-hour notation. Equivalent to `%H:%M` |
 | `%s` | Yes | The number of seconds since the Epoch, 1970-01-01 00:00:00 +0000 UTC. |
 | `%S` | Yes | The second as a decimal number (range 00 to 60). |
 | `%t` | Yes | A tab character. |
-| `%T` | Yes | The time in 24-hour notation (%H:%M:%S). |
+| `%T` | Yes | The time in 24-hour notation. Equivalent to `%H:%M:%S`. |
 | `%u` | Yes | The day of the week as a decomal, range 1 to 7, Monday being 1. |
 | `%U` | No  | The week number of the current year as a decimal number. |
 | `%V` | No  | The ISO 8601 week number of the current year as a decimal number. |
 | `%w` | Yes | The day of the week as a decimal, range 0 to 6, Sunday being 0. |
 | `%W` | No  | The week number of the current year as a decimal number. |
-| `%x` | Yes | Equivalent to %m/%d/%y |
-| `%X` | Yes | Equivalent to %H:%M:%S |
+| `%x` | Yes | Equivalent to `%m/%d/%y` |
+| `%X` | Yes | Equivalent to `%H:%M:%S` |
 | `%y` | Yes | The year as a decimal number without a century (range 00 to 99). |
 | `%Y` | Yes | The year as a decimal number including the century. |
 | `%z` | Yes | The ++hhmm or -hhmm numeric timezone. |
 | `%Z` | Yes | The timezone name or abbreviation. |
-| `%+` | No  | The date and time in date(1) format. |
+| `%+` | Yes | The date and time in date(1) format. Equivalent to `%a %b %e %T %p %Z %Y`. |
 | `%%` | Yes | A % character. |

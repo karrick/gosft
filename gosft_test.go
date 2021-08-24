@@ -5,8 +5,8 @@ import (
 	"time"
 )
 
-func TestAppend2(t *testing.T) {
-	t.Run("2d", func(t *testing.T) {
+func TestAppend2Digits(t *testing.T) {
+	t.Run("min", func(t *testing.T) {
 		tests := []struct {
 			value int
 			want  string
@@ -20,14 +20,14 @@ func TestAppend2(t *testing.T) {
 		for _, c := range tests {
 			t.Run(c.want, func(t *testing.T) {
 				var buf []byte
-				append2d(&buf, c.value)
+				append2DigitsMin(&buf, c.value)
 				if got, want := string(buf), c.want; got != want {
 					t.Errorf("GOT: %q; WANT: %q", got, want)
 				}
 			})
 		}
 	})
-	t.Run("02d", func(t *testing.T) {
+	t.Run("pad with zero", func(t *testing.T) {
 		tests := []struct {
 			value int
 			want  string
@@ -41,14 +41,14 @@ func TestAppend2(t *testing.T) {
 		for _, c := range tests {
 			t.Run(c.want, func(t *testing.T) {
 				var buf []byte
-				append02d(&buf, c.value)
+				append2DigitsZero(&buf, c.value)
 				if got, want := string(buf), c.want; got != want {
 					t.Errorf("GOT: %q; WANT: %q", got, want)
 				}
 			})
 		}
 	})
-	t.Run("S2d", func(t *testing.T) {
+	t.Run("pad with space", func(t *testing.T) {
 		tests := []struct {
 			value int
 			want  string
@@ -62,7 +62,7 @@ func TestAppend2(t *testing.T) {
 		for _, c := range tests {
 			t.Run(c.want, func(t *testing.T) {
 				var buf []byte
-				appendS2d(&buf, c.value)
+				append2DigitsSpace(&buf, c.value)
 				if got, want := string(buf), c.want; got != want {
 					t.Errorf("GOT: %q; WANT: %q", got, want)
 				}
@@ -71,8 +71,8 @@ func TestAppend2(t *testing.T) {
 	})
 }
 
-func TestAppend3(t *testing.T) {
-	t.Run("03d", func(t *testing.T) {
+func TestAppend3Digits(t *testing.T) {
+	t.Run("pad with zero", func(t *testing.T) {
 		tests := []struct {
 			value int
 			want  string
@@ -88,7 +88,7 @@ func TestAppend3(t *testing.T) {
 		for _, c := range tests {
 			t.Run(c.want, func(t *testing.T) {
 				var buf []byte
-				append03d(&buf, c.value)
+				append3DigitsZero(&buf, c.value)
 				if got, want := string(buf), c.want; got != want {
 					t.Errorf("GOT: %q; WANT: %q", got, want)
 				}
@@ -97,7 +97,7 @@ func TestAppend3(t *testing.T) {
 	})
 }
 
-func append4d(buf *[]byte, i int) {
+func append4DigitsMin(buf *[]byte, i int) {
 	var foo bool
 	if i >= 1000 {
 		*buf = append(*buf, digits[i/1000])
@@ -124,8 +124,33 @@ func append4d(buf *[]byte, i int) {
 	*buf = append(*buf, digits[i])
 }
 
-func TestAppend4(t *testing.T) {
-	t.Run("4d", func(t *testing.T) {
+func append4DigitsSpace(buf *[]byte, i int) {
+	offset := 10
+
+	// thousands
+	*buf = append(*buf, digits[offset+i/1000])
+	if i >= 1000 {
+		offset = 0
+	}
+	i %= 1000
+
+	// hundreds
+	*buf = append(*buf, digits[offset+i/100])
+	if i >= 100 {
+		offset = 0
+	}
+	i %= 100
+
+	// tens
+	*buf = append(*buf, digits[offset+i/10])
+	i %= 10
+
+	// ones
+	*buf = append(*buf, digits[i])
+}
+
+func TestAppend4Digits(t *testing.T) {
+	t.Run("min", func(t *testing.T) {
 		tests := []struct {
 			value int
 			want  string
@@ -142,14 +167,14 @@ func TestAppend4(t *testing.T) {
 		for _, c := range tests {
 			t.Run(c.want, func(t *testing.T) {
 				var buf []byte
-				append4d(&buf, c.value)
+				append4DigitsMin(&buf, c.value)
 				if got, want := string(buf), c.want; got != want {
 					t.Errorf("GOT: %q; WANT: %q", got, want)
 				}
 			})
 		}
 	})
-	t.Run("04d", func(t *testing.T) {
+	t.Run("pad with zero", func(t *testing.T) {
 		tests := []struct {
 			value int
 			want  string
@@ -166,14 +191,14 @@ func TestAppend4(t *testing.T) {
 		for _, c := range tests {
 			t.Run(c.want, func(t *testing.T) {
 				var buf []byte
-				append04d(&buf, c.value)
+				append4DigitsZero(&buf, c.value)
 				if got, want := string(buf), c.want; got != want {
 					t.Errorf("GOT: %q; WANT: %q", got, want)
 				}
 			})
 		}
 	})
-	t.Run("S4d", func(t *testing.T) {
+	t.Run("pad with space", func(t *testing.T) {
 		tests := []struct {
 			value int
 			want  string
@@ -190,7 +215,7 @@ func TestAppend4(t *testing.T) {
 		for _, c := range tests {
 			t.Run(c.want, func(t *testing.T) {
 				var buf []byte
-				appendS4d(&buf, c.value)
+				append4DigitsSpace(&buf, c.value)
 				if got, want := string(buf), c.want; got != want {
 					t.Errorf("GOT: %q; WANT: %q", got, want)
 				}
@@ -199,7 +224,30 @@ func TestAppend4(t *testing.T) {
 	})
 }
 
-func TestAppend9(t *testing.T) {
+func TestAppend6Digits(t *testing.T) {
+	tests := []struct {
+		value int
+		want  string
+	}{
+		{0, "000000"},
+		{1, "000001"},
+		{9, "000009"},
+		{10, "000010"},
+		{99, "000099"},
+		{123456, "123456"},
+	}
+	for _, c := range tests {
+		t.Run(c.want, func(t *testing.T) {
+			var buf []byte
+			append6DigitsZero(&buf, c.value)
+			if got, want := string(buf), c.want; got != want {
+				t.Errorf("GOT: %q; WANT: %q", got, want)
+			}
+		})
+	}
+}
+
+func TestAppend9Digits(t *testing.T) {
 	tests := []struct {
 		value int
 		want  string
@@ -214,7 +262,7 @@ func TestAppend9(t *testing.T) {
 	for _, c := range tests {
 		t.Run(c.want, func(t *testing.T) {
 			var buf []byte
-			append09d(&buf, c.value)
+			append9DigitsZero(&buf, c.value)
 			if got, want := string(buf), c.want; got != want {
 				t.Errorf("GOT: %q; WANT: %q", got, want)
 			}
@@ -223,71 +271,75 @@ func TestAppend9(t *testing.T) {
 }
 
 func TestFormatter(t *testing.T) {
-	when := time.Date(2009, time.February, 5, 5, 0, 57, 12345600, time.UTC)
+	// Use the same date-time stamp that Go standard library uses,
+	// namely 2006-01-02T15:04:05Z07:00
+	when := time.Date(2006, time.January, 2, 3, 4, 5, 12345678, time.UTC)
 
 	tests := []struct {
 		format, want string
 	}{
-		{"%a", "Thu"},
-		{"%A", "Thursday"},
-		{"%b", "Feb"},
-		{"%B", "February"},
-		{"%c", "Thu Feb  5 05:00:57 2009"},
-		{"%C", "20"},
-		{"%d", "05"},
-		{"%D", "02/05/09"},
-		{"%e", " 5"},
-		// {"%E", "TODO"},
-		{"%F", "2009-02-05"},
-		{"%g", "09"},
-		{"%G", "2009"},
-		{"%h", "Feb"},
-		{"%H", "05"},
-		{"%I", "05"},
-		{"%j", "036"},
-		{"%k", " 5"},
-		{"%l", "5"},
-		{"%m", "02"},
-		{"%M", "00"},
-		{"%n", "\n"},
-		// {"%O", "TODO"},
-		{"%p", "AM"},
-		{"%P", "am"},
-		{"%r", "05:00:57 AM"},
-		{"%R", "05:00"},
-		{"%s", "1233810057"},
-		{"%S", "57"},
-		{"%t", "\t"},
-		{"%T", "05:00:57"},
-		{"%u", "4"},
-		// {"%U", "TODO"},
-		// {"%V", "TODO"},
-		{"%w", "4"},
-		// {"%W", "TODO"},
-		{"%x", "02/05/09"},
-		{"%X", "05:00:57"},
-		{"%y", "09"},
-		{"%Y", "2009"},
-		{"%z", "+0000"},
-		{"%Z", "UTC"},
-		// {"%+", "TODO"},
-		{"%%", "%"},
+		{"%a", "Mon"},                      // The abbreviated name of the day of the week.
+		{"%A", "Monday"},                   // The full name of the day of the week.
+		{"%b", "Jan"},                      // The abbreviated month name.
+		{"%B", "January"},                  // Thee full name of the month.
+		{"%c", "Mon Jan  2 03:04:05 2006"}, // Time and date. Equivalent to `%a %b %e %H:%M:%S %Y`.
+		{"%C", "20"},                       // The century number (year/100) as a 2-digit integer (00..99).
+		{"%d", "02"},                       // The day of the month (01..31).
+		{"%D", "01/02/06"},                 // Equivalent to `%m/%d/%y`.
+		{"%e", " 2"},                       // Like `%d`, the day of the month ( 1..31).
+		// {"%E", "TODO"}, // Modifier: use alternative ("era-based") format.
+		{"%F", "2006-01-02"}, // Equivalent to `%Y-%m-%d`, the ISO 8601 date format.
+		{"%g", "06"},         // Like `%G`, but without century, that is, with a 2-digit year (00..99).
+		{"%G", "2006"},       // The ISO 8601 week-based year with century as a 4-digit decimal number.
+		{"%h", "Jan"},        // Equivalent to `%b`.
+		{"%H", "03"},         // The hour as a decimal number using a 24-hour clock (00..23).
+		{"%I", "03"},         // The hour as a decimal number using a 12-hour clock (01..12).
+		{"%j", "002"},        // The day of the year as a decimal number (001..366).
+		{"%k", " 3"},         // The hour (24-hour clock) as a decimal number ( 0..23).
+		{"%l", " 3"},         // The hour (12-hour clock) as a decimal number ( 1..12).
+		{"%m", "01"},         // The month as a decimal number (01..12).
+		{"%M", "04"},         // The minute as a decimal number (00..59).
+		{"%n", "\n"},         // A newline character.
+		// {"%O", "TODO"}, // Modifier: use alternative numeric symbols.
+		{"%p", "AM"},          // Either "AM" or "PM" according to the given time value.
+		{"%P", "am"},          // Either "am" or "pm" according to the given time value.
+		{"%r", "03:04:05 AM"}, // The time in a.m. or p.m. notation. Equivalent to `%I:%M:%S %p`.
+		{"%R", "03:04"},       // The time in 24-hour notation. Equivalent to `%H:%M`
+		{"%s", "1136171045"},  // The number of seconds since the Epoch, 1970-01-01 00:00:00 +0000 UTC.
+		{"%S", "05"},          // The second as a decimal number (00..60).
+		{"%t", "\t"},          // A tab character.
+		{"%T", "03:04:05"},    // The time in 24-hour notation. Equivalent to `%H:%M:%S`.
+		{"%u", "1"},           // The day of the week, (1..7); 1 is Monday.
+		// {"%U", "TODO"}, // The week number of the current year as a decimal number.
+		// {"%V", "TODO"}, // The ISO 8601 week number of the current year as a decimal number.
+		{"%w", "1"}, // The day of the week as a decimal, (0..6); 0 is Sunday.
+		// {"%W", "TODO"}, // The week number of the current year as a decimal number.
+		{"%x", "01/02/06"}, // Equivalent to `%m/%d/%y`
+		{"%X", "03:04:05"}, // Equivalent to `%H:%M:%S`
+		{"%y", "06"},       // The year as a decimal number without a century (00..99).
+		{"%Y", "2006"},     // The year as a decimal number including the century.
+		{"%z", "+0000"},    // The ++hhmm or -hhmm numeric timezone.
+		{"%Z", "UTC"},      // The timezone name or abbreviation.
+		{"%+", "Mon Jan  2 03:04:05 AM UTC 2006"}, // The date and time in date(1) format.
+		{"%%", "%"}, // A % character.
 
 		// Make sure embedded substrings are included.
-		{"abc %F def %T ghi", "abc 2009-02-05 def 05:00:57 ghi"},
+		{"abc %F def %T ghi", "abc 2006-01-02 def 03:04:05 ghi"},
 	}
+
 	for _, c := range tests {
 		tf, err := New(c.format)
 		ensureError(t, err, nil)
-		buf := make([]byte, 0, 128)
 
 		t.Run("Append", func(t *testing.T) {
 			t.Run(c.format, func(t *testing.T) {
+				buf := make([]byte, 0, 64)
 				if got, want := string(tf.Append(buf, when)), c.want; got != want {
 					t.Errorf("GOT: %q; WANT: %q", got, want)
 				}
 			})
 		})
+
 		t.Run("Format", func(t *testing.T) {
 			t.Run(c.format, func(t *testing.T) {
 				if got, want := tf.Format(when), c.want; got != want {
@@ -298,8 +350,83 @@ func TestFormatter(t *testing.T) {
 	}
 }
 
+func TestWeekdays(t *testing.T) {
+	tests := []struct {
+		day         int
+		short, long string
+	}{
+		{2, "Mon", "Monday"}, // The second day of this year-month happens to be a Monday.
+		{3, "Tue", "Tuesday"},
+		{4, "Wed", "Wednesday"},
+		{5, "Thu", "Thursday"},
+		{6, "Fri", "Friday"},
+		{7, "Sat", "Saturday"},
+		{8, "Sun", "Sunday"},
+	}
+
+	sf, err := New("%a")
+	ensureError(t, err, nil)
+	lf, err := New("%A")
+	ensureError(t, err, nil)
+
+	for _, c := range tests {
+		when := time.Date(2006, time.January, c.day, 3, 4, 5, 12345678, time.UTC)
+		t.Run("short", func(t *testing.T) {
+			if got, want := sf.Format(when), c.short; got != want {
+				t.Errorf("GOT: %q; WANT: %q", got, want)
+			}
+		})
+		t.Run("long", func(t *testing.T) {
+			if got, want := lf.Format(when), c.long; got != want {
+				t.Errorf("GOT: %q; WANT: %q", got, want)
+			}
+		})
+	}
+}
+
+func TestMonths(t *testing.T) {
+	tests := []struct {
+		month       time.Month
+		short, long string
+	}{
+		{time.January, "Jan", "January"},
+		{time.February, "Feb", "February"},
+		{time.March, "Mar", "March"},
+		{time.April, "Apr", "April"},
+		{time.May, "May", "May"},
+		{time.June, "Jun", "June"},
+		{time.July, "Jul", "July"},
+		{time.August, "Aug", "August"},
+		{time.September, "Sep", "September"},
+		{time.October, "Oct", "October"},
+		{time.November, "Nov", "November"},
+		{time.December, "Dec", "December"},
+	}
+
+	sf, err := New("%b")
+	ensureError(t, err, nil)
+	lf, err := New("%B")
+	ensureError(t, err, nil)
+
+	for _, c := range tests {
+		when := time.Date(2006, c.month, 2, 3, 4, 5, 12345678, time.UTC)
+		t.Run("short", func(t *testing.T) {
+			if got, want := sf.Format(when), c.short; got != want {
+				t.Errorf("GOT: %q; WANT: %q", got, want)
+			}
+		})
+		t.Run("long", func(t *testing.T) {
+			if got, want := lf.Format(when), c.long; got != want {
+				t.Errorf("GOT: %q; WANT: %q", got, want)
+			}
+		})
+	}
+}
+
 func TestCompatibility(t *testing.T) {
-	when := time.Date(2009, time.February, 5, 5, 0, 57, 12345678, time.UTC)
+	// Use the same date-time stamp that Go standard library uses,
+	// namely 2006-01-02T15:04:05Z07:00
+	when := time.Date(2006, time.January, 2, 3, 4, 5, 12345678, time.UTC)
 
 	tests := []string{
 		time.ANSIC,
@@ -318,6 +445,7 @@ func TestCompatibility(t *testing.T) {
 		time.StampMicro,
 		time.StampNano,
 	}
+
 	for _, c := range tests {
 		t.Run(c, func(t *testing.T) {
 			tf, err := NewCompat(c)
@@ -330,9 +458,15 @@ func TestCompatibility(t *testing.T) {
 	}
 }
 
-func Benchmark(b *testing.B) {
+func BenchmarkCompatibility(b *testing.B) {
 	var err error
 	var foo string
+
+	buf := make([]byte, 0, 128)
+
+	// Use the same date-time stamp that Go standard library uses,
+	// namely 2006-01-02T15:04:05Z07:00
+	when := time.Date(2006, time.January, 2, 3, 4, 5, 12345678, time.UTC)
 
 	tests := []struct {
 		format string
@@ -361,33 +495,31 @@ func Benchmark(b *testing.B) {
 		ensureError(b, err, nil)
 	}
 
-	when := time.Date(2009, time.February, 5, 5, 0, 57, 12345600, time.UTC)
-	buf := make([]byte, 0, 100)
-
 	b.ResetTimer()
-
-	b.Run("stdlib", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			for _, c := range tests {
-				foo = when.Format(c.format)
-			}
-		}
-	})
-	_ = foo
 
 	b.Run("Append", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			for _, c := range tests {
 				buf = c.tf.Append(buf, when)
+				buf = buf[:0] // reset buffer to append to first byte in pre-allocated slice
 			}
 		}
 	})
-	_ = foo
+	_ = buf
 
 	b.Run("Format", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			for _, c := range tests {
 				foo = c.tf.Format(when)
+			}
+		}
+	})
+	_ = foo
+
+	b.Run("stdlib", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			for _, c := range tests {
+				foo = when.Format(c.format)
 			}
 		}
 	})

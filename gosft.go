@@ -29,18 +29,32 @@ func init() {
 		time.RFC1123:     "%a, %d %b %Y %T %Z", // "Mon, 02 Jan 2006 15:04:05 MST",
 		time.RFC1123Z:    "%a, %d %b %Y %T %z", // "Mon, 02 Jan 2006 15:04:05 -0700",
 		time.RFC3339:     "%Y-%m-%dT%T%1",      // "2006-01-02T15:04:05Z07:00", // TODO: %1 not standard
-		time.RFC3339Nano: "%Y-%m-%dT%T.%2%1",   // "2006-01-02T15:04:05.999999999Z07:00", // TODO: %1 and %2 not standard
-		time.Kitchen:     "%l:%M%p",            // "3:04PM",
+		time.RFC3339Nano: "%Y-%m-%dT%T.%N%1",   // "2006-01-02T15:04:05.999999999Z07:00", // TODO: %1 not standard
+		time.Kitchen:     "%2:%M%p",            // "3:04PM", // TODO: %2 not standard
 		time.Stamp:       "%b %e %T",           // "Jan _2 15:04:05"
 		time.StampMilli:  "%b %e %T.%3",        // "Jan _2 15:04:05.000" // TODO: %3 not standard
 		time.StampMicro:  "%b %e %T.%4",        // "Jan _2 15:04:05.000000" // TODO: %4 not standard
-		time.StampNano:   "%b %e %T.%2",        // "Jan _2 15:04:05.000000000" // TODO: %2 not standard
+		time.StampNano:   "%b %e %T.%N",        // "Jan _2 15:04:05.000000000"
 	}
 }
 
 // New returns a formatter that formats times according to the
 // provided format string.
 func New(format string) (*Formatter, error) {
+	return create(format, false)
+}
+
+// NewCompat returns a formatter that formats times according to the
+// provided Go standard library compatible time string format.
+func NewCompat(format string) (*Formatter, error) {
+	value, ok := formatMap[format]
+	if !ok {
+		return nil, fmt.Errorf("cannot find equivalent for time format string: %q", format)
+	}
+	return create(value, true)
+}
+
+func create(format string, special bool) (*Formatter, error) {
 	// Build slice of formatting functions, each will emit the
 	// requested information.
 	var formatters []func(*[]byte, time.Time)
@@ -87,7 +101,7 @@ func New(format string) (*Formatter, error) {
 		case 'G':
 			formatters = append(formatters, appendGC)
 		case 'h':
-			formatters = append(formatters, appendH)
+			formatters = append(formatters, appendMonthShort)
 		case 'H':
 			formatters = append(formatters, appendHC)
 		case 'I':
@@ -104,6 +118,8 @@ func New(format string) (*Formatter, error) {
 			formatters = append(formatters, appendMC)
 		case 'n':
 			formatters = append(formatters, appendN)
+		case 'N':
+			formatters = append(formatters, appendNC)
 		case 'p':
 			formatters = append(formatters, appendP)
 		case 'P':
@@ -138,13 +154,27 @@ func New(format string) (*Formatter, error) {
 			formatters = append(formatters, appendZC)
 		case '%':
 			formatters = append(formatters, appendPercent)
+		case '+':
+			formatters = append(formatters, appendPlus)
 		case '1':
+			if !special {
+				return nil, fmt.Errorf("cannot recognize format verb %q at index %d", rune, ri)
+			}
 			formatters = append(formatters, appendTZ)
 		case '2':
-			formatters = append(formatters, appendNano)
+			if !special {
+				return nil, fmt.Errorf("cannot recognize format verb %q at index %d", rune, ri)
+			}
+			formatters = append(formatters, appendLMin)
 		case '3':
+			if !special {
+				return nil, fmt.Errorf("cannot recognize format verb %q at index %d", rune, ri)
+			}
 			formatters = append(formatters, appendMilli)
 		case '4':
+			if !special {
+				return nil, fmt.Errorf("cannot recognize format verb %q at index %d", rune, ri)
+			}
 			formatters = append(formatters, appendMicro)
 		default:
 			return nil, fmt.Errorf("cannot recognize format verb %q at index %d", rune, ri)
@@ -170,22 +200,12 @@ func New(format string) (*Formatter, error) {
 	// whenever need to format a new time, pre-allocate a byte slice
 	// with that number of bytes, and format the provided time into
 	// that byte slice.
-	when := time.Date(2021, time.September, 30, 23, 59, 59, 0, time.UTC)
+	when := time.Date(2021, time.September, 30, 23, 59, 59, 123456789, time.UTC)
 
 	tf := &Formatter{formatters: formatters}
 	tf.size = len(tf.Format(when))
 
 	return tf, nil
-}
-
-// NewCompat returns a formatter that formats times according to the
-// provided Go standard library compatible time string format.
-func NewCompat(format string) (*Formatter, error) {
-	value, ok := formatMap[format]
-	if !ok {
-		return nil, fmt.Errorf("cannot find equivalent for time format string: %q", format)
-	}
-	return New(value)
 }
 
 // Append will format t in accordance with its preconfigured format
@@ -200,11 +220,7 @@ func (tf *Formatter) Append(buf []byte, t time.Time) []byte {
 // Format will format t and return a string in accordance with its
 // preconfigured format specification.
 func (tf *Formatter) Format(t time.Time) string {
-	buf := make([]byte, 0, tf.size)
-	for _, f := range tf.formatters {
-		f(&buf, t)
-	}
-	return string(buf)
+	return string(tf.Append(make([]byte, 0, tf.size), t))
 }
 
 func makeStringFormatter(value []byte) func(*[]byte, time.Time) {
@@ -230,7 +246,7 @@ const digits = "0123456789 123456789"
 
 // Dividend ÷ Divisor = Quotient
 
-func append2d(buf *[]byte, i int) {
+func append2DigitsMin(buf *[]byte, i int) {
 	quotient := i / 10
 	remainder := i % 10
 	if quotient > 0 {
@@ -239,21 +255,21 @@ func append2d(buf *[]byte, i int) {
 	*buf = append(*buf, digits[remainder])
 }
 
-func append02d(buf *[]byte, i int) {
+func append2DigitsZero(buf *[]byte, i int) {
 	quotient := i / 10
 	remainder := i % 10
 	*buf = append(*buf, digits[quotient])
 	*buf = append(*buf, digits[remainder])
 }
 
-func appendS2d(buf *[]byte, i int) {
+func append2DigitsSpace(buf *[]byte, i int) {
 	quotient := i / 10
 	remainder := i % 10
 	*buf = append(*buf, digits[10+quotient])
 	*buf = append(*buf, digits[remainder])
 }
 
-func append03d(buf *[]byte, i int) {
+func append3DigitsZero(buf *[]byte, i int) {
 	// hundreds
 	quotient := i / 100
 	remainder := i % 100
@@ -268,7 +284,7 @@ func append03d(buf *[]byte, i int) {
 	*buf = append(*buf, digits[remainder])
 }
 
-func append04d(buf *[]byte, i int) {
+func append4DigitsZero(buf *[]byte, i int) {
 	// thousands
 	quotient := i / 1000
 	remainder := i % 1000
@@ -288,32 +304,7 @@ func append04d(buf *[]byte, i int) {
 	*buf = append(*buf, digits[remainder])
 }
 
-func appendS4d(buf *[]byte, i int) {
-	offset := 10
-
-	// thousands
-	*buf = append(*buf, digits[offset+i/1000])
-	if i >= 1000 {
-		offset = 0
-	}
-	i %= 1000
-
-	// hundreds
-	*buf = append(*buf, digits[offset+i/100])
-	if i >= 100 {
-		offset = 0
-	}
-	i %= 100
-
-	// tens
-	*buf = append(*buf, digits[offset+i/10])
-	i %= 10
-
-	// ones
-	*buf = append(*buf, digits[i])
-}
-
-func append06d(buf *[]byte, i int) {
+func append6DigitsZero(buf *[]byte, i int) {
 	// hundred-thousands
 	quotient := i / 100000
 	remainder := i % 100000
@@ -343,7 +334,7 @@ func append06d(buf *[]byte, i int) {
 	*buf = append(*buf, digits[remainder])
 }
 
-func append09d(buf *[]byte, i int) {
+func append9DigitsZero(buf *[]byte, i int) {
 	// hundred-millions
 	//              123456789
 	quotient := i / 100000000
@@ -389,29 +380,19 @@ func append09d(buf *[]byte, i int) {
 	*buf = append(*buf, digits[remainder])
 }
 
+//                    0         1         2         3         4         5
+//                    012345678901234567890123456789012345678901234567890
+const weekdaysLong = "SundayMondayTuesdayWednesdayThursdayFridaySaturday"
+
+var weekdaysLongIndices = []int{0, 6, 12, 19, 28, 36, 42, 50} // 50 is extra index to cover final entry in list
+
 func appendWeekdayShort(buf *[]byte, t time.Time) {
 	// %a     The  abbreviated  name  of  the day of the week according to the
 	//        current locale.  (Calculated from tm_wday.)  (The specific names
 	//        used  in  the current locale can be obtained by calling nl_lang‐
 	//        info(3) with ABDAY_{1–7} as an argument.)
-	switch wd := t.Weekday(); wd {
-	case time.Sunday:
-		*buf = append(*buf, []byte("Sun")...)
-	case time.Monday:
-		*buf = append(*buf, []byte("Mon")...)
-	case time.Tuesday:
-		*buf = append(*buf, []byte("Tue")...)
-	case time.Wednesday:
-		*buf = append(*buf, []byte("Wed")...)
-	case time.Thursday:
-		*buf = append(*buf, []byte("Thu")...)
-	case time.Friday:
-		*buf = append(*buf, []byte("Fri")...)
-	case time.Saturday:
-		*buf = append(*buf, []byte("Sat")...)
-	default:
-		*buf = append(*buf, []byte(fmt.Sprintf("Wd(%d)", wd))...)
-	}
+	index := weekdaysLongIndices[t.Weekday()]
+	*buf = append(*buf, weekdaysLong[index:index+3]...)
 }
 
 func appendWeekdayLong(buf *[]byte, t time.Time) {
@@ -419,59 +400,23 @@ func appendWeekdayLong(buf *[]byte, t time.Time) {
 	//        locale.  (Calculated from tm_wday.)  (The specific names used in
 	//        the current locale can be  obtained  by  calling  nl_langinfo(3)
 	//        with DAY_{1–7} as an argument.)
-	switch wd := t.Weekday(); wd {
-	case time.Sunday:
-		*buf = append(*buf, []byte("Sunday")...)
-	case time.Monday:
-		*buf = append(*buf, []byte("Monday")...)
-	case time.Tuesday:
-		*buf = append(*buf, []byte("Tuesday")...)
-	case time.Wednesday:
-		*buf = append(*buf, []byte("Wednesday")...)
-	case time.Thursday:
-		*buf = append(*buf, []byte("Thursday")...)
-	case time.Friday:
-		*buf = append(*buf, []byte("Friday")...)
-	case time.Saturday:
-		*buf = append(*buf, []byte("Saturday")...)
-	default:
-		*buf = append(*buf, []byte(fmt.Sprintf("Weekday(%d)", wd))...)
-	}
+	index := t.Weekday()
+	*buf = append(*buf, weekdaysLong[weekdaysLongIndices[index]:weekdaysLongIndices[index+1]]...)
 }
+
+//                  0         1         2         3         4         5         6         7
+//                  012345678901234567890123456789012345678901234567890123456789012345678901234
+const monthsLong = "JanuaryFebruaryMarchAprilMayJuneJulyAugustSeptemberOctoberNovemberDecember"
+
+var monthsLongIndices = []int{0, 7, 15, 20, 25, 28, 32, 36, 42, 51, 58, 66, 74} // 74 is extra index to cover final entry in list
 
 func appendMonthShort(buf *[]byte, t time.Time) {
 	// %b     The  abbreviated  month  name  according  to the current locale.
 	//        (Calculated from tm_mon.)  (The specific names used in the  cur‐
 	//        rent  locale  can be obtained by calling nl_langinfo(3) with AB‐
 	//        MON_{1–12} as an argument.)
-	switch month := t.Month(); month {
-	case time.January:
-		*buf = append(*buf, []byte("Jan")...)
-	case time.February:
-		*buf = append(*buf, []byte("Feb")...)
-	case time.March:
-		*buf = append(*buf, []byte("Mar")...)
-	case time.April:
-		*buf = append(*buf, []byte("Apr")...)
-	case time.May:
-		*buf = append(*buf, []byte("May")...)
-	case time.June:
-		*buf = append(*buf, []byte("Jun")...)
-	case time.July:
-		*buf = append(*buf, []byte("Jul")...)
-	case time.August:
-		*buf = append(*buf, []byte("Aug")...)
-	case time.September:
-		*buf = append(*buf, []byte("Sep")...)
-	case time.October:
-		*buf = append(*buf, []byte("Oct")...)
-	case time.November:
-		*buf = append(*buf, []byte("Nov")...)
-	case time.December:
-		*buf = append(*buf, []byte("Dec")...)
-	default:
-		*buf = append(*buf, []byte(fmt.Sprintf("Mo(%d)", month))...)
-	}
+	index := monthsLongIndices[t.Month()-1]
+	*buf = append(*buf, monthsLong[index:index+3]...)
 }
 
 func appendMonthLong(buf *[]byte, t time.Time) {
@@ -479,34 +424,8 @@ func appendMonthLong(buf *[]byte, t time.Time) {
 	//        lated from tm_mon.)  (The specific names used in the current lo‐
 	//        cale can be obtained by calling nl_langinfo(3)  with  MON_{1–12}
 	//        as an argument.)
-	switch month := t.Month(); month {
-	case time.January:
-		*buf = append(*buf, []byte("January")...)
-	case time.February:
-		*buf = append(*buf, []byte("February")...)
-	case time.March:
-		*buf = append(*buf, []byte("March")...)
-	case time.April:
-		*buf = append(*buf, []byte("April")...)
-	case time.May:
-		*buf = append(*buf, []byte("May")...)
-	case time.June:
-		*buf = append(*buf, []byte("June")...)
-	case time.July:
-		*buf = append(*buf, []byte("July")...)
-	case time.August:
-		*buf = append(*buf, []byte("August")...)
-	case time.September:
-		*buf = append(*buf, []byte("September")...)
-	case time.October:
-		*buf = append(*buf, []byte("October")...)
-	case time.November:
-		*buf = append(*buf, []byte("November")...)
-	case time.December:
-		*buf = append(*buf, []byte("December")...)
-	default:
-		*buf = append(*buf, []byte(fmt.Sprintf("Month(%d)", month))...)
-	}
+	index := t.Month() - 1
+	*buf = append(*buf, monthsLong[monthsLongIndices[index]:monthsLongIndices[index+1]]...)
 }
 
 func appendC(buf *[]byte, t time.Time) {
@@ -521,8 +440,7 @@ func appendC(buf *[]byte, t time.Time) {
 	appendMonthShort(buf, t)
 	*buf = append(*buf, ' ')
 
-	// appendE(buf, t)
-	appendS2d(buf, t.Day())
+	append2DigitsSpace(buf, t.Day()) // appendE(buf, t)
 
 	*buf = append(*buf, ' ')
 	appendTC(buf, t)
@@ -536,13 +454,13 @@ func appendCC(buf *[]byte, t time.Time) {
 	//        %EC  conversion  specification  corresponds  to  the name of the
 	//        era.)  (Calculated from tm_year.)
 	year := t.Year()
-	append02d(buf, year/100)
+	append2DigitsZero(buf, year/100)
 }
 
 func appendD(buf *[]byte, t time.Time) {
 	// %d     The day of the month as a  decimal  number  (range  01  to  31).
 	//        (Calculated from tm_mday.)
-	append02d(buf, t.Day())
+	append2DigitsZero(buf, t.Day())
 }
 
 func appendDC(buf *[]byte, t time.Time) {
@@ -552,19 +470,19 @@ func appendDC(buf *[]byte, t time.Time) {
 	//        ous and should not be used.) (SU)
 	year, month, day := t.Date()
 
-	append02d(buf, int(month))
+	append2DigitsZero(buf, int(month))
 	*buf = append(*buf, '/')
 
-	append02d(buf, day)
+	append2DigitsZero(buf, day)
 	*buf = append(*buf, '/')
 
-	append02d(buf, year%100)
+	append2DigitsZero(buf, year%100)
 }
 
 func appendE(buf *[]byte, t time.Time) {
 	// %e     Like %d, the day of the month as a decimal number, but a leading
 	//        zero is replaced by a space. (SU) (Calculated from tm_mday.)
-	appendS2d(buf, t.Day())
+	append2DigitsSpace(buf, t.Day())
 }
 
 // func appendEC(buf *[]byte, t time.Time) {
@@ -575,20 +493,20 @@ func appendFC(buf *[]byte, t time.Time) {
 	// %F     Equivalent to %Y-%m-%d (the ISO 8601 date format). (C99)
 	year, month, day := t.Date()
 
-	append04d(buf, year)
+	append4DigitsZero(buf, year)
 	*buf = append(*buf, '-')
 
-	append02d(buf, int(month))
+	append2DigitsZero(buf, int(month))
 	*buf = append(*buf, '-')
 
-	append02d(buf, day)
+	append2DigitsZero(buf, day)
 }
 
 func appendG(buf *[]byte, t time.Time) {
 	// %g     Like %G, but without century,  that  is,  with  a  2-digit  year
 	//        (00–99). (TZ) (Calculated from tm_year, tm_yday, and tm_wday.)
 	year, _ := t.ISOWeek()
-	append02d(buf, year%100)
+	append2DigitsZero(buf, year%100)
 }
 
 func appendGC(buf *[]byte, t time.Time) {
@@ -599,19 +517,13 @@ func appendGC(buf *[]byte, t time.Time) {
 	//        year,  that year is used instead. (TZ) (Calculated from tm_year,
 	//        tm_yday, and tm_wday.)
 	year, _ := t.ISOWeek()
-	append04d(buf, year)
-}
-
-func appendH(buf *[]byte, t time.Time) {
-	// %h     Equivalent to %b.  (SU)
-	appendMonthShort(buf, t)
+	append4DigitsZero(buf, year)
 }
 
 func appendHC(buf *[]byte, t time.Time) {
 	// %H     The  hour as a decimal number using a 24-hour clock (range 00 to
 	//        23).  (Calculated from tm_hour.)
-	hour := t.Hour()
-	append02d(buf, hour)
+	append2DigitsZero(buf, t.Hour())
 }
 
 func appendIC(buf *[]byte, t time.Time) {
@@ -621,20 +533,20 @@ func appendIC(buf *[]byte, t time.Time) {
 	if hour > 12 {
 		hour -= 12
 	}
-	append02d(buf, hour)
+	append2DigitsZero(buf, hour)
 }
 
 func appendJ(buf *[]byte, t time.Time) {
 	// %j     The  day  of  the  year  as a decimal number (range 001 to 366).
 	//        (Calculated from tm_yday.)
-	append03d(buf, t.YearDay())
+	append3DigitsZero(buf, t.YearDay())
 }
 
 func appendK(buf *[]byte, t time.Time) {
 	// %k     The hour (24-hour clock) as a decimal number (range  0  to  23);
 	//        single  digits are preceded by a blank.  (See also %H.)  (Calcu‐
 	//        lated from tm_hour.)  (TZ)
-	appendS2d(buf, t.Hour())
+	append2DigitsSpace(buf, t.Hour())
 }
 
 func appendL(buf *[]byte, t time.Time) {
@@ -645,24 +557,45 @@ func appendL(buf *[]byte, t time.Time) {
 	if hour > 12 {
 		hour -= 12
 	}
-	append2d(buf, hour)
+	append2DigitsSpace(buf, hour)
+}
+
+func appendLMin(buf *[]byte, t time.Time) {
+	// only used to support time.Kitchen.
+	hour := t.Hour()
+	if hour > 12 {
+		hour -= 12
+	}
+	append2DigitsMin(buf, hour)
 }
 
 func appendM(buf *[]byte, t time.Time) {
 	// %m     The month as a decimal number (range  01  to  12).   (Calculated
 	//        from tm_mon.)
-	append02d(buf, int(t.Month()))
+	append2DigitsZero(buf, int(t.Month()))
 }
 
 func appendMC(buf *[]byte, t time.Time) {
 	// %M     The  minute  as  a decimal number (range 00 to 59).  (Calculated
 	//        from tm_min.)
-	append02d(buf, t.Minute())
+	append2DigitsZero(buf, t.Minute())
 }
 
 func appendN(buf *[]byte, t time.Time) {
 	// %n     A newline character. (SU)
 	*buf = append(*buf, '\n')
+}
+
+func appendNC(buf *[]byte, t time.Time) {
+	append9DigitsZero(buf, t.Nanosecond())
+}
+
+func appendMicro(buf *[]byte, t time.Time) {
+	append6DigitsZero(buf, t.Nanosecond()/1000)
+}
+
+func appendMilli(buf *[]byte, t time.Time) {
+	append3DigitsZero(buf, t.Nanosecond()/1000000)
 }
 
 // func appendOC(buf *[]byte, t time.Time) {
@@ -701,23 +634,23 @@ func appendR(buf *[]byte, t time.Time) {
 	//        info(3) with T_FMT_AMPM as an argument.)  (In the  POSIX  locale
 	//        this is equivalent to %I:%M:%S %p.)
 	// 09:24:14 PM
+	var pm bool
 	hour, minute, second := t.Clock()
 
-	var pm bool
 	if hour >= 12 {
 		pm = true
+		if hour > 12 {
+			hour -= 12
+		}
 	}
 
-	if hour > 12 {
-		hour -= 12
-	}
-	append02d(buf, hour)
+	append2DigitsZero(buf, hour)
 	*buf = append(*buf, ':')
 
-	append02d(buf, minute)
+	append2DigitsZero(buf, minute)
 	*buf = append(*buf, ':')
 
-	append02d(buf, second)
+	append2DigitsZero(buf, second)
 	*buf = append(*buf, ' ')
 
 	if pm {
@@ -732,23 +665,9 @@ func appendRC(buf *[]byte, t time.Time) {
 	//        cluding the seconds, see %T below.
 	hour, minute, _ := t.Clock()
 
-	append02d(buf, hour)
+	append2DigitsZero(buf, hour)
 	*buf = append(*buf, ':')
-	append02d(buf, minute)
-}
-
-func appendMicro(buf *[]byte, t time.Time) {
-	micro := t.Nanosecond() / 1000
-	append06d(buf, micro)
-}
-
-func appendMilli(buf *[]byte, t time.Time) {
-	millis := t.Nanosecond() / 1000000
-	append03d(buf, millis)
-}
-
-func appendNano(buf *[]byte, t time.Time) {
-	append09d(buf, t.Nanosecond())
+	append2DigitsZero(buf, minute)
 }
 
 func appendS(buf *[]byte, t time.Time) {
@@ -761,7 +680,7 @@ func appendSC(buf *[]byte, t time.Time) {
 	// %S     The  second as a decimal number (range 00 to 60).  (The range is
 	//        up to 60 to allow for  occasional  leap  seconds.)   (Calculated
 	//        from tm_sec.)
-	append02d(buf, t.Second())
+	append2DigitsZero(buf, t.Second())
 }
 
 func appendT(buf *[]byte, t time.Time) {
@@ -773,35 +692,22 @@ func appendTC(buf *[]byte, t time.Time) {
 	// %T     The time in 24-hour notation (%H:%M:%S).  (SU)
 	hour, minute, second := t.Clock()
 
-	append02d(buf, hour)
+	append2DigitsZero(buf, hour)
 	*buf = append(*buf, ':')
 
-	append02d(buf, minute)
+	append2DigitsZero(buf, minute)
 	*buf = append(*buf, ':')
 
-	append02d(buf, second)
+	append2DigitsZero(buf, second)
 }
 
 func appendU(buf *[]byte, t time.Time) {
 	// %u     The  day of the week as a decimal, range 1 to 7, Monday being 1.
 	//        See also %w.  (Calculated from tm_wday.)  (SU)
-	switch wd := t.Weekday(); wd {
-	case time.Sunday:
-		*buf = append(*buf, []byte("7")...)
-	case time.Monday:
-		*buf = append(*buf, []byte("1")...)
-	case time.Tuesday:
-		*buf = append(*buf, []byte("2")...)
-	case time.Wednesday:
-		*buf = append(*buf, []byte("3")...)
-	case time.Thursday:
-		*buf = append(*buf, []byte("4")...)
-	case time.Friday:
-		*buf = append(*buf, []byte("5")...)
-	case time.Saturday:
-		*buf = append(*buf, []byte("6")...)
-	default:
-		*buf = append(*buf, []byte(fmt.Sprintf("Wd(%d)", wd))...)
+	if wd := t.Weekday(); wd > 0 {
+		*buf = append(*buf, byte(wd+'0'))
+	} else {
+		*buf = append(*buf, '7')
 	}
 }
 
@@ -832,24 +738,7 @@ func appendU(buf *[]byte, t time.Time) {
 func appendW(buf *[]byte, t time.Time) {
 	// %w     The day of the week as a decimal, range 0 to 6, Sunday being  0.
 	//        See also %u.  (Calculated from tm_wday.)
-	switch wd := t.Weekday(); wd {
-	case time.Sunday:
-		*buf = append(*buf, []byte("0")...)
-	case time.Monday:
-		*buf = append(*buf, []byte("1")...)
-	case time.Tuesday:
-		*buf = append(*buf, []byte("2")...)
-	case time.Wednesday:
-		*buf = append(*buf, []byte("3")...)
-	case time.Thursday:
-		*buf = append(*buf, []byte("4")...)
-	case time.Friday:
-		*buf = append(*buf, []byte("5")...)
-	case time.Saturday:
-		*buf = append(*buf, []byte("6")...)
-	default:
-		*buf = append(*buf, []byte(fmt.Sprintf("Wd(%d)", wd))...)
-	}
+	*buf = append(*buf, byte(t.Weekday()+'0'))
 }
 
 // func appendWC(buf *[]byte, t time.Time) {
@@ -884,17 +773,14 @@ func appendY(buf *[]byte, t time.Time) {
 	//        (The %Ey conversion specification corresponds to the year  since
 	//        the  beginning of the era denoted by the %EC conversion specifi‐
 	//        cation.)  (Calculated from tm_year)
-	year := t.Year()
-	year %= 100
-	append02d(buf, year)
+	append2DigitsZero(buf, t.Year()%100)
 }
 
 func appendYC(buf *[]byte, t time.Time) {
 	// %Y     The year as a decimal number including the  century.   (The  %EY
 	//        conversion  specification  corresponds  to  the full alternative
 	//        year representation.)  (Calculated from tm_year)
-	year := t.Year()
-	append04d(buf, year)
+	append4DigitsZero(buf, t.Year())
 }
 
 func appendZ(buf *[]byte, t time.Time) {
@@ -908,8 +794,14 @@ func appendZ(buf *[]byte, t time.Time) {
 	} else {
 		*buf = append(*buf, '-')
 	}
-	append02d(buf, hour)
-	append02d(buf, minute)
+	append2DigitsZero(buf, hour)
+	append2DigitsZero(buf, minute)
+}
+
+func appendZC(buf *[]byte, t time.Time) {
+	// %Z     The timezone name or abbreviation.
+	name, _ := t.Zone()
+	*buf = append(*buf, name...)
 }
 
 func appendTZ(buf *[]byte, t time.Time) {
@@ -919,31 +811,35 @@ func appendTZ(buf *[]byte, t time.Time) {
 	} else {
 		hour := offset / 60
 		minute := offset % 60
-		if offset > 0 {
-			append02d(buf, hour)
-			*buf = append(*buf, ':')
-			append02d(buf, minute)
-		} else {
+		if offset < 0 {
 			*buf = append(*buf, '-')
-			append02d(buf, hour)
-			*buf = append(*buf, ':')
-			append02d(buf, minute)
 		}
+		append2DigitsZero(buf, hour)
+		*buf = append(*buf, ':')
+		append2DigitsZero(buf, minute)
 	}
 }
-
-func appendZC(buf *[]byte, t time.Time) {
-	// %Z     The timezone name or abbreviation.
-	name, _ := t.Zone()
-	*buf = append(*buf, name...)
-}
-
-// func appendPlus(buf *[]byte, t time.Time) {
-// 	// %+     The  date  and  time  in  date(1) format. (TZ) (Not supported in
-// 	//        glibc2.)
-// }
 
 func appendPercent(buf *[]byte, t time.Time) {
 	// %%     A literal '%' character.
 	*buf = append(*buf, '%')
+}
+
+func appendPlus(buf *[]byte, t time.Time) {
+	// %+     The  date  and  time  in  date(1) format. (TZ) (Not supported in
+	//        glibc2.)
+	// "%a %b %e %T %p %Z %Y"
+	appendWeekdayShort(buf, t)
+	*buf = append(*buf, ' ')
+	appendMonthShort(buf, t)
+	*buf = append(*buf, ' ')
+	appendE(buf, t)
+	*buf = append(*buf, ' ')
+	appendTC(buf, t)
+	*buf = append(*buf, ' ')
+	appendP(buf, t)
+	*buf = append(*buf, ' ')
+	appendZC(buf, t)
+	*buf = append(*buf, ' ')
+	appendYC(buf, t)
 }
